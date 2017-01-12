@@ -60,6 +60,8 @@
 /* Private variables ---------------------------------------------------------*/
 CAN_HandleTypeDef hcan1;
 
+CRC_HandleTypeDef hcrc;
+
 SPI_HandleTypeDef hspi1;
 DMA_HandleTypeDef hdma_spi1_tx;
 DMA_HandleTypeDef hdma_spi1_rx;
@@ -115,6 +117,7 @@ static void MX_CAN1_Init(void);
 static void MX_USART2_UART_Init(void);
 static void MX_WWDG_Init(void);
 static void MX_SPI1_Init(void);
+static void MX_CRC_Init(void);
 void doApplication(void const * argument);
 void doProcessCan(void const * argument);
 void TmrKickDog(void const * argument);
@@ -156,6 +159,7 @@ int main(void)
   MX_USART2_UART_Init();
   MX_WWDG_Init();
   MX_SPI1_Init();
+  MX_CRC_Init();
 
   /* USER CODE BEGIN 2 */
   Serial2_begin();
@@ -340,6 +344,26 @@ static void MX_CAN1_Init(void)
   hcan1.Init.RFLM = DISABLE;
   hcan1.Init.TXFP = DISABLE;
   if (HAL_CAN_Init(&hcan1) != HAL_OK)
+  {
+    Error_Handler();
+  }
+
+}
+
+/* CRC init function */
+static void MX_CRC_Init(void)
+{
+
+  hcrc.Instance = CRC;
+  hcrc.Init.DefaultPolynomialUse = DEFAULT_POLYNOMIAL_DISABLE;
+  hcrc.Init.DefaultInitValueUse = DEFAULT_INIT_VALUE_DISABLE;
+  hcrc.Init.GeneratingPolynomial = 50585;
+  hcrc.Init.CRCLength = CRC_POLYLENGTH_16B;
+  hcrc.Init.InitValue = 16;
+  hcrc.Init.InputDataInversionMode = CRC_INPUTDATA_INVERSION_NONE;
+  hcrc.Init.OutputDataInversionMode = CRC_OUTPUTDATA_INVERSION_DISABLE;
+  hcrc.InputDataFormat = CRC_INPUTDATA_FORMAT_BYTES;
+  if (HAL_CRC_Init(&hcrc) != HAL_OK)
   {
     Error_Handler();
   }
