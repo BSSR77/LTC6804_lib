@@ -1,2 +1,2 @@
-# LTC6804_lib
-RTOS-aware LTC6804 driver library
+# Gen9_BASE
+Base RTOS configuration for Blue Sky Solar Racing 9th Generation electrical system
