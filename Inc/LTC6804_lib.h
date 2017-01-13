@@ -134,14 +134,24 @@ Copyright 2013 Linear Technology Corp. (LTC)
 
 typedef struct {
 	SPI_HandleTypeDef * hspi;								// SPI Handle for this chain
-	uint8_t		ADCV[2];									// ADCV register
-	uint8_t		ADAX[2];									// ADAX register
+	uint8_t		ADCV[2];									// Global ADCV register template
+	uint8_t		ADAX[2];									// Global ADAX register template
 	uint8_t 	spiRxBuf[TOTAL_IC * BYTES_IN_REG];			// SPI Receive Buffer
 	uint8_t	 	spiTxBuf[TOTAL_IC * BYTES_IN_REG];			// SPI Transmit Buffer
 	uint8_t		boardConfigs[TOTAL_IC][REG_BYTES];			// All the boards' configurations on the stack
 	uint16_t 	auxVolts[TOTAL_IC][REG_BYTES];				// Stores the auxiliary GPIO measurement data
 	uint16_t	cellVolts[TOTAL_IC][12];					// Stores the cell voltage measurement data
 } ltc68041ChainHandle;
+
+typedef struct {
+	uint8_t 	refon;		// Reference on/off
+	uint8_t		swtrd;		// Software discharge timer
+	uint8_t 	adcMode;	// ADC mode group selection
+	uint16_t	vov;		// Overvoltage set point
+	uint16_t	vuv;		// Unvervoltage set point
+	uint16_t	dcc;		// Cell discharge control
+	uint8_t		dcto;		// Discharge timeout
+}ltc68041ChainInitStruct;
 
 int8_t LTC6804_rdaux(ltc68041ChainHandle * hbms, uint8_t reg);
 void set_adc(ltc68041ChainHandle * hbms, uint8_t MD, uint8_t DCP, uint8_t CH, uint8_t CHG);

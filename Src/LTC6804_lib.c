@@ -21,7 +21,27 @@ extern osSemaphoreId bmsTRxCompleteHandle;
  * Create a global ltc68041ChainHandle in main.c
  */
 
-// CRC calculations are provided by the STM32-CRC peripheral
+void ltc68041_Initialize(ltc68041ChainHandle * hbms, ltc68041ChainInitStruct * hinit){
+	// Initialize all the configuraiton groups
+	for(uint8_t current_board = 0; current_board < TOTAL_IC; current_board++){
+		(hbms->boardConfigs)[current_board][0] = (hinit[current_board].refon << 2) | (hinit[current_board].swtrd << 1) | (hinit[current_board].adcMode);
+		(hbms->boardConfigs)[current_board][1] = hinit[current_board].vuv & 0xFF;
+		(hbms->boardConfigs)[current_board][2] = ((hinit[current_board].vuv >> 8) & 0x0F) | ((hinit[current_board].vov << 4) & 0xF0);
+		(hbms->boardConfigs)[current_board][3] = (hinit[current_board].vov << 4);
+		(hbms->boardConfigs)[current_board][4] = hinit[current_board].dcc & 0xFF;
+		(hbms->boardConfigs)[current_board][5] = (hinit[current_board].dcc >> 8) | (hinit[current_board].dcto << 4);
+	}
+	LTC6804_wrcfg(hbms);	// Write configurations to the board
+
+	// Global ADC settings
+	set_adc(hbms, MD_NORMAL,DCP_DISABLED,CELL_CH_ALL,AUX_CH_ALL);
+
+	// TODO: Mux test
+	// TODO: Self-test
+	// TODO: Read status register and verify all parameters normal
+}
+
+
 /*!**********************************************************
  \brief calaculates  and returns the CRC15
 
@@ -99,7 +119,7 @@ int8_t LTC6804_rdcfg(ltc68041ChainHandle * hbms)
   uint16_t received_pec;
 
   //1
-  // Assemble command bytes + pec15
+  // RDCFG + pec15
   (hbms->spiTxBuf)[0] = 0x00;
   (hbms->spiTxBuf)[1] = 0x02;
   (hbms->spiTxBuf)[2] = 0x2b;
@@ -126,11 +146,11 @@ int8_t LTC6804_rdcfg(ltc68041ChainHandle * hbms)
 	//4.a
     for (uint8_t current_byte = 0; current_byte < BYTES_IN_REG; current_byte++)
     {
-      (hbms->boardConfigs)[current_ic][current_byte] = (hbms->spiRxBuf)[current_byte + (current_ic*BYTES_IN_REG)];
+      (hbms->boardConfigs)[current_ic][current_byte] = (hbms->spiRxBuf)[current_byte + CMD_LEN + (current_ic*BYTES_IN_REG)];
     }
     //4.b
     received_pec = ((hbms->boardConfigs)[current_ic][6]<<8) + (hbms->boardConfigs)[current_ic][7];	// Extract the last 2 bytes of the received data buffer
-    data_pec = pec15_calc(6, &(hbms->boardConfigs)[current_ic][0]);
+    data_pec = pec15_calc(6, &((hbms->boardConfigs)[current_ic][0]));
     if(received_pec != data_pec)
     {
       pec_error = -1 * current_ic;
@@ -189,7 +209,8 @@ void LTC6804_wrcfg(ltc68041ChainHandle * hbms)
   uint16_t cfg_pec;
   uint8_t cmd_index; //command counter
 
-  //1 - Assemble command and pec for the first board
+  //1
+  // WRCFG + pec
   (hbms->spiTxBuf)[0] = 0x00;
   (hbms->spiTxBuf)[1] = 0x01;
   (hbms->spiTxBuf)[2] = 0x3d;
@@ -256,16 +277,11 @@ Command Code:
 ***************************************************************/
 void LTC6804_clraux(ltc68041ChainHandle * hbms)
 {
-  uint16_t cmd_pec;
-
-  //1
+  //1 - CLRAUX + pec
   (hbms->spiTxBuf)[0] = 0x07;
   (hbms->spiTxBuf)[1] = 0x12;
-
-  //2
-  cmd_pec = pec15_calc(2, (hbms->spiTxBuf));
-  (hbms->spiTxBuf)[2] = (uint8_t)(cmd_pec >> 8);
-  (hbms->spiTxBuf)[3] = (uint8_t)(cmd_pec);
+  (hbms->spiTxBuf)[2] = 0x3d;
+  (hbms->spiTxBuf)[3] = 0x6e;
 
   //3
   wakeup_idle (); //This will guarantee that the LTC6804 isoSPI port is awake.This command can be removed.
@@ -307,16 +323,11 @@ Command Code:
 ************************************************************/
 void LTC6804_clrcell(ltc68041ChainHandle * hbms)
 {
-  uint16_t cmd_pec;
-
-  //1
+  //1 - CLRCELL + pec
   (hbms->spiTxBuf)[0] = 0x07;
   (hbms->spiTxBuf)[1] = 0x11;
-
-  //2
-  cmd_pec = pec15_calc(2, (hbms->spiTxBuf));
-  (hbms->spiTxBuf)[2] = (uint8_t)(cmd_pec >> 8);
-  (hbms->spiTxBuf)[3] = (uint8_t)(cmd_pec );
+  (hbms->spiTxBuf)[2] = 0xc9;
+  (hbms->spiTxBuf)[3] = 0xc0;
 
   //3
   wakeup_idle (); //This will guarantee that the LTC6804 isoSPI port is awake. This command can be removed.
@@ -374,29 +385,24 @@ Command Code:
  *************************************************/
 void LTC6804_rdaux_reg(ltc68041ChainHandle * hbms, uint8_t reg)
 {
-  const uint8_t REG_LEN = 8; // number of bytes in the register + 2 bytes for the PEC
   uint16_t cmd_pec;
 
   //1
-  if (reg == 1)			//Read back auxiliary group A
-  {
-	  (hbms->spiTxBuf)[1] = 0x0C;
-	  (hbms->spiTxBuf)[0] = 0x00;
-  }
-  else if(reg == 2)		//Read back auxiliary group B
+  if(reg == 2)		// Read back auxiliary group B
   {
 	  (hbms->spiTxBuf)[1] = 0x0e;
 	  (hbms->spiTxBuf)[0] = 0x00;
   }
-  else					//Read back auxiliary group A
+  else				// Read back auxiliary group A
   {
 	  (hbms->spiTxBuf)[1] = 0x0C;
 	  (hbms->spiTxBuf)[0] = 0x00;
   }
+
   //2
   cmd_pec = pec15_calc(2, (hbms->spiTxBuf));
-  (hbms->spiTxBuf)[2] = (uint8_t)(cmd_pec >> 8);
-  (hbms->spiTxBuf)[3] = (uint8_t)(cmd_pec);
+  (hbms->spiTxBuf)[2] = (uint8_t)((cmd_pec >> 8) & 0xFF);
+  (hbms->spiTxBuf)[3] = (uint8_t)((cmd_pec) & 0xFF);
 
   //3
   wakeup_idle (); //This will guarantee that the LTC6804 isoSPI port is awake, this command can be removed.
@@ -410,7 +416,7 @@ void LTC6804_rdaux_reg(ltc68041ChainHandle * hbms, uint8_t reg)
   }
   // Transmit the command via DMA
   HAL_GPIO_WritePin(BMS_CS_GPIO_Port, BMS_CS_Pin, GPIO_PIN_RESET);
-  HAL_SPI_TransmitReceive_DMA(hbms->hspi, hbms->spiTxBuf, hbms->spiRxBuf, CMD_LEN + (REG_LEN*TOTAL_IC));
+  HAL_SPI_TransmitReceive_DMA(hbms->hspi, hbms->spiTxBuf, hbms->spiRxBuf, CMD_LEN + (BYTES_IN_REG*TOTAL_IC));
 }
 /*
   LTC6804_rdaux_reg Function Process:
@@ -864,7 +870,7 @@ int8_t LTC6804_rdaux(ltc68041ChainHandle * hbms, uint8_t reg)
 		}
 		//b.iii
 		received_pec = ((hbms->spiRxBuf)[data_counter+CMD_LEN]<<8) + (hbms->spiRxBuf)[data_counter+CMD_LEN+1];
-        data_pec = pec15_calc(REG_BYTES, &((hbms->spiRxBuf)[current_ic*BYTES_IN_REG]));
+        data_pec = pec15_calc(REG_BYTES, &((hbms->spiRxBuf)[current_ic*BYTES_IN_REG + CMD_LEN]));
         if(received_pec != data_pec)
         {
           pec_error = -1;
@@ -890,3 +896,9 @@ int8_t LTC6804_rdaux(ltc68041ChainHandle * hbms, uint8_t reg)
 	2. Return pec_error flag
 */
 
+
+// TODO: Open wire test
+// TODO: Cell voltage Self-Test
+// TODO: GPIO voltage self-test
+// TODO: Diagnose MUX
+// TODO: Read status register
