@@ -51,6 +51,7 @@
 #include "nodeMiscHelpers.h"
 #include "nodeConf.h"
 #include "../../CAN_ID.h"
+#include "LTC6804_lib.h"
 
 // RTOS Task functions + helpers
 #include "Can_Processor.h"
@@ -79,11 +80,11 @@ osMessageQId mainCanRxQHandle;
 osTimerId WWDGTmrHandle;
 osTimerId HBTmrHandle;
 osMutexId swMtxHandle;
-osSemaphoreId spiTRxCompleteHandle;
-osSemaphoreId spiTxCompleteHandle;
+osSemaphoreId bmsTRxCompleteHandle;
 
 /* USER CODE BEGIN PV */
 /* Private variables ---------------------------------------------------------*/
+ltc68041ChainHandle hbms1;
 
 #ifdef FRANK
 const uint32_t firmwareString = 0x00000100;	// v00.00.01.0
@@ -134,7 +135,22 @@ void can_rx_cb(){
 /* USER CODE END PFP */
 
 /* USER CODE BEGIN 0 */
+// SPI DMA read channels complete callback
+void HAL_SPI_TxRxCpltCallback(SPI_HandleTypeDef *hspi){
+	// Check which SPI issued interrupt
+	if(hspi == (hbms1.hspi)){
+		HAL_GPIO_WritePin(BMS_CS_GPIO_Port,BMS_CS_Pin, GPIO_PIN_SET);
+		xSemaphoreGiveFromISR(bmsTRxCompleteHandle, NULL);
+	}
+}
 
+// SPI DMA write reg complete callback
+void HAL_SPI_TxCpltCallback(SPI_HandleTypeDef *hspi){
+	// Check which SPI issued interrupt
+	if(hspi == (hbms1.hspi)){
+		HAL_GPIO_WritePin(BMS_CS_GPIO_Port,BMS_CS_Pin, GPIO_PIN_SET);
+	}
+}
 /* USER CODE END 0 */
 
 int main(void)
@@ -176,6 +192,8 @@ int main(void)
   bxCan_setTxCallback(can_rx_cb);
 #endif
 
+  // Set up the global ADC configs for the LTC6804
+  set_adc(&hbms1, MD_NORMAL,DCP_DISABLED,CELL_CH_ALL,AUX_CH_ALL);
   /* USER CODE END 2 */
 
   /* Create the mutex(es) */
@@ -188,13 +206,9 @@ int main(void)
   /* USER CODE END RTOS_MUTEX */
 
   /* Create the semaphores(s) */
-  /* definition and creation of spiTRxComplete */
-  osSemaphoreDef(spiTRxComplete);
-  spiTRxCompleteHandle = osSemaphoreCreate(osSemaphore(spiTRxComplete), 1);
-
-  /* definition and creation of spiTxComplete */
-  osSemaphoreDef(spiTxComplete);
-  spiTxCompleteHandle = osSemaphoreCreate(osSemaphore(spiTxComplete), 1);
+  /* definition and creation of bmsTRxComplete */
+  osSemaphoreDef(bmsTRxComplete);
+  bmsTRxCompleteHandle = osSemaphoreCreate(osSemaphore(bmsTRxComplete), 1);
 
   /* USER CODE BEGIN RTOS_SEMAPHORES */
   /* add semaphores, ... */
@@ -473,12 +487,12 @@ static void MX_GPIO_Init(void)
   __HAL_RCC_GPIOB_CLK_ENABLE();
 
   /*Configure GPIO pin Output Level */
-  HAL_GPIO_WritePin(BMS_CS_GPIO_Port, BMS_CS_Pin, GPIO_PIN_RESET);
+  HAL_GPIO_WritePin(BMS_CS_GPIO_Port, BMS_CS_Pin, GPIO_PIN_SET);
 
   /*Configure GPIO pin : BMS_CS_Pin */
   GPIO_InitStruct.Pin = BMS_CS_Pin;
-  GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
-  GPIO_InitStruct.Pull = GPIO_NOPULL;
+  GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_OD;
+  GPIO_InitStruct.Pull = GPIO_PULLUP;
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
   HAL_GPIO_Init(BMS_CS_GPIO_Port, &GPIO_InitStruct);
 
