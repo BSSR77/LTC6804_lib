@@ -21,7 +21,8 @@ extern osSemaphoreId bmsTRxCompleteHandle;
  * Create a global ltc68041ChainHandle in main.c
  */
 
-void ltc68041_Initialize(ltc68041ChainHandle * hbms, ltc68041ChainInitStruct * hinit){
+uint8_t LTC68041_Initialize(ltc68041ChainHandle * hbms, ltc68041ChainInitStruct * hinit){
+	uint8_t retVal = 0;
 	// Initialize all the configuraiton groups
 	for(uint8_t current_board = 0; current_board < TOTAL_IC; current_board++){
 		(hbms->boardConfigs)[current_board][0] = (hinit[current_board].refon << 2) | (hinit[current_board].swtrd << 1) | (hinit[current_board].adcMode);
@@ -36,9 +37,22 @@ void ltc68041_Initialize(ltc68041ChainHandle * hbms, ltc68041ChainInitStruct * h
 	// Global ADC settings
 	set_adc(hbms, MD_NORMAL,DCP_DISABLED,CELL_CH_ALL,AUX_CH_ALL);
 
-	// TODO: Mux test
-	// TODO: Self-test
-	// TODO: Read status register and verify all parameters normal
+	// Cell voltage read test
+	if(LTC6804_cvTest(hbms)){
+		retVal = 1;
+	}
+
+	// Status register read test
+	if(LTC6804_statTest(hbms)){
+		retVal = 2;
+	}
+
+	// Internal diagnostic variable test
+	if(LTC6804_internalTest(hbms)){
+		retVal = 3;
+	}
+
+	return retVal;
 }
 
 
@@ -134,6 +148,11 @@ int8_t LTC6804_rdcfg(ltc68041ChainHandle * hbms)
 		  (HAL_SPI_GetState(hbms->hspi) == HAL_SPI_STATE_BUSY_RX))){
 	  osDelay(1);
   }
+  // Flush spi Rx FIFO
+  	while(__HAL_SPI_GET_FLAG(hbms->hspi, SPI_FLAG_RXNE)){
+  		uint32_t garbage = hbms->hspi->Instance->DR;
+  	}
+
   HAL_GPIO_WritePin(BMS_CS_GPIO_Port, BMS_CS_Pin, GPIO_PIN_RESET);
   HAL_SPI_TransmitReceive_DMA(hbms->hspi, hbms->spiTxBuf, hbms->spiRxBuf, CMD_LEN + BYTES_IN_REG * TOTAL_IC );
   //Read the configuration data of all ICs on the daisy chain into the handle's storage arrays
@@ -414,7 +433,12 @@ void LTC6804_rdaux_reg(ltc68041ChainHandle * hbms, uint8_t reg)
   {
     osDelay(1);
   }
+
   // Transmit the command via DMA
+  // Flush spi Rx FIFO
+  	while(__HAL_SPI_GET_FLAG(hbms->hspi, SPI_FLAG_RXNE)){
+  		uint32_t garbage = hbms->hspi->Instance->DR;
+  	}
   HAL_GPIO_WritePin(BMS_CS_GPIO_Port, BMS_CS_Pin, GPIO_PIN_RESET);
   HAL_SPI_TransmitReceive_DMA(hbms->hspi, hbms->spiTxBuf, hbms->spiRxBuf, CMD_LEN + (BYTES_IN_REG*TOTAL_IC));
 }
@@ -500,6 +524,11 @@ void LTC6804_rdcv_reg(ltc68041ChainHandle * hbms, uint8_t reg) 	//Determines whi
   {
       osDelay(1);
   }
+
+  // Flush spi Rx FIFO
+  	while(__HAL_SPI_GET_FLAG(hbms->hspi, SPI_FLAG_RXNE)){
+  		uint32_t garbage = hbms->hspi->Instance->DR;
+  	}
   // Transmit the command via DMA
   HAL_GPIO_WritePin(BMS_CS_GPIO_Port, BMS_CS_Pin, GPIO_PIN_RESET);
   HAL_SPI_TransmitReceive_DMA(hbms->hspi, hbms->spiTxBuf, hbms->spiRxBuf, CMD_LEN + (BYTES_IN_REG*TOTAL_IC));
@@ -896,9 +925,288 @@ int8_t LTC6804_rdaux(ltc68041ChainHandle * hbms, uint8_t reg)
 	2. Return pec_error flag
 */
 
-
 // TODO: Open wire test
-// TODO: Cell voltage Self-Test
-// TODO: GPIO voltage self-test
-// TODO: Diagnose MUX
-// TODO: Read status register
+
+//  Cell voltage Self-Test
+int8_t LTC6804_cvTest(ltc68041ChainHandle * hbms)
+{
+	int8_t retVal = 0;
+	uint16_t cmd_pec;
+	uint16_t RxTemp;
+
+	//1
+	// CVST + pec15
+	(hbms->spiTxBuf)[0] = (hbms->ADCV)[0] & 0x03;
+	(hbms->spiTxBuf)[1] = ((hbms->ADCV)[1] & 0x80) | (0x02 << 5) | 0x7;	// Self-test mode 2
+	cmd_pec = pec15_calc(2, hbms->ADAX);
+	(hbms->spiTxBuf)[2] = (uint8_t)(cmd_pec >> 8);
+	(hbms->spiTxBuf)[3] = (uint8_t)(cmd_pec);
+
+	//2
+	wakeup_idle(); //This will guarantee that the LTC6804 isoSPI port is awake. This command can be removed.
+
+	//3
+	// Wait for the SPI peripheral to finish TXing if it's busy
+	while(!((HAL_SPI_GetState(hbms->hspi) == HAL_SPI_STATE_READY) ||
+		  (HAL_SPI_GetState(hbms->hspi) == HAL_SPI_STATE_BUSY_RX))){
+	  osDelay(1);
+	}
+
+	// Flush spi Rx FIFO
+	while(__HAL_SPI_GET_FLAG(hbms->hspi, SPI_FLAG_RXNE)){
+		uint32_t garbage = hbms->hspi->Instance->DR;
+	}
+
+	HAL_GPIO_WritePin(BMS_CS_GPIO_Port, BMS_CS_Pin, GPIO_PIN_RESET);
+	// 4 register groups, 6 registers per register group
+	HAL_SPI_TransmitReceive_DMA(hbms->hspi, hbms->spiTxBuf, hbms->spiRxBuf, CMD_LEN + REG_BYTES * 4 * TOTAL_IC);
+	//Read the configuration data of all ICs on the daisy chain into the handle's storage arrays
+
+	// Suspend until we get the semaphore that the transmission is complete
+	xSemaphoreTake(bmsTRxCompleteHandle, portMAX_DELAY);
+
+	// Check the return values for all the ICs
+	for (uint8_t current_ic = 0; current_ic < TOTAL_IC; current_ic++)
+	{
+		// Dump data
+		for (uint8_t current_byte = 0; current_byte < BYTES_IN_REG * 4; current_byte += 2)
+		{
+			RxTemp = (((hbms->spiRxBuf)[current_byte + CMD_LEN + REG_BYTES * 4 * current_ic]) << 8) +
+					((hbms->spiRxBuf)[current_byte + 1 + CMD_LEN + REG_BYTES * 4 * current_ic]);
+
+			// Check the test value
+			if(RxTemp != cvTestPos){
+				retVal = -1;	// Self-test failed
+			}
+		}
+	}
+
+	return(retVal);
+}
+
+//  Auxiliary voltage measurement Self-Test
+int8_t LTC6804_auxTest(ltc68041ChainHandle * hbms)
+{
+	int8_t retVal = 0;
+	uint16_t cmd_pec;
+	uint16_t RxTemp;
+
+	//1
+	// AXST + pec15
+	(hbms->spiTxBuf)[0] = ((hbms->ADCV)[0] & 0x01) | 0x4;
+	(hbms->spiTxBuf)[1] = ((hbms->ADCV)[1] & 0x80) | (0x02 << 5) | 0x7;	// Self-test mode 2
+	cmd_pec = pec15_calc(2, hbms->ADAX);
+	(hbms->spiTxBuf)[2] = (uint8_t)(cmd_pec >> 8);
+	(hbms->spiTxBuf)[3] = (uint8_t)(cmd_pec);
+
+	//2
+	wakeup_idle(); //This will guarantee that the LTC6804 isoSPI port is awake. This command can be removed.
+
+	//3
+	// Wait for the SPI peripheral to finish TXing if it's busy
+	while(!((HAL_SPI_GetState(hbms->hspi) == HAL_SPI_STATE_READY) ||
+		  (HAL_SPI_GetState(hbms->hspi) == HAL_SPI_STATE_BUSY_RX))){
+	  osDelay(1);
+	}
+
+	// Flush spi Rx FIFO
+	while(__HAL_SPI_GET_FLAG(hbms->hspi, SPI_FLAG_RXNE)){
+		uint32_t garbage = hbms->hspi->Instance->DR;
+	}
+
+	HAL_GPIO_WritePin(BMS_CS_GPIO_Port, BMS_CS_Pin, GPIO_PIN_RESET);
+	// 4 register groups, 6 registers per register group
+	HAL_SPI_TransmitReceive_DMA(hbms->hspi, hbms->spiTxBuf, hbms->spiRxBuf, CMD_LEN + REG_BYTES * 2 * TOTAL_IC);
+	//Read the configuration data of all ICs on the daisy chain into the handle's storage arrays
+
+	// Suspend until we get the semaphore that the transmission is complete
+	xSemaphoreTake(bmsTRxCompleteHandle, portMAX_DELAY);
+
+	// Check the return values for all the ICs
+	for (uint8_t current_ic = 0; current_ic < TOTAL_IC; current_ic++)
+	{
+		// Dump data
+		for (uint8_t current_byte = 0; current_byte < BYTES_IN_REG * 2; current_byte += 2)
+		{
+			RxTemp = (((hbms->spiRxBuf)[current_byte + CMD_LEN + REG_BYTES * 4 * current_ic]) << 8) +
+					((hbms->spiRxBuf)[current_byte + 1 + CMD_LEN + REG_BYTES * 4 * current_ic]);
+
+			// Check the test value
+			if(RxTemp != axTestPos){
+				retVal = -1;	// Self-test failed
+			}
+		}
+	}
+
+	return(retVal);
+}
+
+// Status register Self-Test
+int8_t LTC6804_statTest(ltc68041ChainHandle * hbms)
+{
+	int8_t retVal = 0;
+	uint16_t cmd_pec;
+	uint16_t RxTemp;
+
+	//1
+	// STATST + pec15
+	(hbms->spiTxBuf)[0] = ((hbms->ADCV)[0] & 0x01) | 0x4;
+	(hbms->spiTxBuf)[1] = ((hbms->ADCV)[1] & 0x80) | (0x02 << 5) | 0xF;	// Self-test mode 2
+	cmd_pec = pec15_calc(2, hbms->ADAX);
+	(hbms->spiTxBuf)[2] = (uint8_t)(cmd_pec >> 8);
+	(hbms->spiTxBuf)[3] = (uint8_t)(cmd_pec);
+
+	//2
+	wakeup_idle(); //This will guarantee that the LTC6804 isoSPI port is awake. This command can be removed.
+
+	//3
+	// Wait for the SPI peripheral to finish TXing if it's busy
+	while(!((HAL_SPI_GetState(hbms->hspi) == HAL_SPI_STATE_READY) ||
+		  (HAL_SPI_GetState(hbms->hspi) == HAL_SPI_STATE_BUSY_RX))){
+	  osDelay(1);
+	}
+
+	// Flush spi Rx FIFO
+	while(__HAL_SPI_GET_FLAG(hbms->hspi, SPI_FLAG_RXNE)){
+		uint32_t garbage = hbms->hspi->Instance->DR;
+	}
+
+	HAL_GPIO_WritePin(BMS_CS_GPIO_Port, BMS_CS_Pin, GPIO_PIN_RESET);
+	// 4 register groups, 6 registers per register group
+	HAL_SPI_TransmitReceive_DMA(hbms->hspi, hbms->spiTxBuf, hbms->spiRxBuf, CMD_LEN + REG_BYTES * 2 * TOTAL_IC);
+	//Read the configuration data of all ICs on the daisy chain into the handle's storage arrays
+
+	// Suspend until we get the semaphore that the transmission is complete
+	xSemaphoreTake(bmsTRxCompleteHandle, portMAX_DELAY);
+
+	// Check the return values for all the ICs
+	for (uint8_t current_ic = 0; current_ic < TOTAL_IC; current_ic++)
+	{
+		// Dump data
+		for (uint8_t current_byte = 0; current_byte < BYTES_IN_REG * 2; current_byte += 2)
+		{
+			RxTemp = (((hbms->spiRxBuf)[current_byte + CMD_LEN + REG_BYTES * 4 * current_ic]) << 8) +
+					((hbms->spiRxBuf)[current_byte + 1 + CMD_LEN + REG_BYTES * 4 * current_ic]);
+
+			// Check the test value
+			if(RxTemp != statTestPos){
+				retVal = -1;	// Self-test failed
+			}
+		}
+	}
+
+	return(retVal);
+}
+
+// Multiplexer Self-Test
+int8_t LTC6804_muxTest(ltc68041ChainHandle * hbms)
+{
+	int8_t retVal = 0;
+
+	//1
+	// DIAGN + pec15
+	(hbms->spiTxBuf)[0] = 0x15;
+	(hbms->spiTxBuf)[1] = 0x07;
+	(hbms->spiTxBuf)[2] = 0x78;
+	(hbms->spiTxBuf)[3] = 0x5e;
+
+	//2
+	wakeup_idle(); //This will guarantee that the LTC6804 isoSPI port is awake. This command can be removed.
+
+	//3
+	// Wait for the SPI peripheral to finish TXing if it's busy
+	while(!((HAL_SPI_GetState(hbms->hspi) == HAL_SPI_STATE_READY) ||
+		  (HAL_SPI_GetState(hbms->hspi) == HAL_SPI_STATE_BUSY_RX))){
+	  osDelay(1);
+	}
+
+	// Flush spi Rx FIFO
+	while(__HAL_SPI_GET_FLAG(hbms->hspi, SPI_FLAG_RXNE)){
+		uint32_t garbage = hbms->hspi->Instance->DR;
+	}
+
+	HAL_GPIO_WritePin(BMS_CS_GPIO_Port, BMS_CS_Pin, GPIO_PIN_RESET);
+	// 4 register groups, 6 registers per register group
+	HAL_SPI_TransmitReceive_DMA(hbms->hspi, hbms->spiTxBuf, hbms->spiRxBuf, CMD_LEN + REG_BYTES * TOTAL_IC);
+	//Read the configuration data of all ICs on the daisy chain into the handle's storage arrays
+
+	// Suspend until we get the semaphore that the transmission is complete
+	xSemaphoreTake(bmsTRxCompleteHandle, portMAX_DELAY);
+
+	// Check the return values for all the ICs
+	for (uint8_t current_ic = 0; current_ic < TOTAL_IC; current_ic++)
+	{
+		// MUXFAIL bit set
+		if(!((((hbms->spiRxBuf)[current_ic * REG_BYTES + 5]) >> 1) & 0x1)){
+			retVal = -1;
+		}
+	}
+
+	return(retVal);
+}
+
+
+// Run internal diagnostic variable test (ADSTAT)
+int8_t LTC6804_internalTest(ltc68041ChainHandle * hbms)
+{
+	int8_t retVal = 0;
+	uint16_t cmd_pec;
+
+	//1
+	// ADSTAT + pec15
+	(hbms->spiTxBuf)[0] = ((hbms->ADCV)[0] & 0x01) | 0x4;
+	(hbms->spiTxBuf)[1] = ((hbms->ADCV)[1] & 0x80) | 0x68;	// Self-test mode 2
+	cmd_pec = pec15_calc(2, hbms->ADAX);
+	(hbms->spiTxBuf)[2] = (uint8_t)(cmd_pec >> 8);
+	(hbms->spiTxBuf)[3] = (uint8_t)(cmd_pec);
+
+	//2
+	wakeup_idle(); //This will guarantee that the LTC6804 isoSPI port is awake. This command can be removed.
+
+	//3
+	// Wait for the SPI peripheral to finish TXing if it's busy
+	while(!((HAL_SPI_GetState(hbms->hspi) == HAL_SPI_STATE_READY) ||
+		  (HAL_SPI_GetState(hbms->hspi) == HAL_SPI_STATE_BUSY_RX))){
+	  osDelay(1);
+	}
+
+	// Flush spi Rx FIFO
+	while(__HAL_SPI_GET_FLAG(hbms->hspi, SPI_FLAG_RXNE)){
+		uint32_t garbage = hbms->hspi->Instance->DR;
+	}
+
+	HAL_GPIO_WritePin(BMS_CS_GPIO_Port, BMS_CS_Pin, GPIO_PIN_RESET);
+	// 4 register groups, 6 registers per register group
+	HAL_SPI_TransmitReceive_DMA(hbms->hspi, hbms->spiTxBuf, hbms->spiRxBuf, CMD_LEN + REG_BYTES * 2 * TOTAL_IC);
+	//Read the configuration data of all ICs on the daisy chain into the handle's storage arrays
+
+	// Suspend until we get the semaphore that the transmission is complete
+	xSemaphoreTake(bmsTRxCompleteHandle, portMAX_DELAY);
+
+	// Check the return values for all the ICs
+	for (uint8_t current_ic = 0; current_ic < TOTAL_IC; current_ic++)
+	{
+		// Dump data
+		for (uint8_t current_byte = 0; current_byte < BYTES_IN_REG * 2; current_byte += 2)
+		{
+			(hbms->boardStat)[current_ic][current_byte / 2] = (((hbms->spiRxBuf)[current_byte + CMD_LEN + REG_BYTES * 4 * current_ic]) << 8) +
+					((hbms->spiRxBuf)[current_byte + 1 + CMD_LEN + REG_BYTES * 4 * current_ic]);
+		}
+
+		// Check power supply measurements
+		// Analag power supply (4.5V <= Va <= 5.5V)
+		if((((hbms->boardStat)[current_ic][3]) >= 55000) || (((hbms->boardStat)[current_ic][3]) <= 45000)){
+			retVal = -1;
+		}
+
+		// Digital power supply (2.7V <= Va <= 3.6V)
+		if((((hbms->boardStat)[current_ic][4]) >= 36000) || (((hbms->boardStat)[current_ic][4]) <= 27000)){
+			retVal = -1;
+		}
+	}
+
+	return(retVal);
+}
+
+
+// TODO: Read status register (RDSTATA + RDSTATB)

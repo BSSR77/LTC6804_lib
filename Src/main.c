@@ -193,7 +193,8 @@ int main(void)
 #endif
 
   // Set up the global ADC configs for the LTC6804
-  set_adc(&hbms1, MD_NORMAL,DCP_DISABLED,CELL_CH_ALL,AUX_CH_ALL);
+  ltc68041ChainInitStruct bmsInitParams[TOTAL_IC];
+  LTC68041_Initialize(&hbms1, bmsInitParams);
   /* USER CODE END 2 */
 
   /* Create the mutex(es) */

@@ -131,14 +131,18 @@ Copyright 2013 Linear Technology Corp. (LTC)
 #define GPIO_IN_REG		3		// Number of GPIO measurements per register group
 #define NUM_AUX_REG		2		// Number of AUX register groups
 
+#define cvTestPos		0x6AAA	// Cell voltage test positive result
+#define axTestPos		0x6AAA	// Aux voltage test positive result
+#define statTestPos		0x6AAA	// Status group conversion test positive result
 
 typedef struct {
 	SPI_HandleTypeDef * hspi;								// SPI Handle for this chain
 	uint8_t		ADCV[2];									// Global ADCV register template
 	uint8_t		ADAX[2];									// Global ADAX register template
-	uint8_t 	spiRxBuf[TOTAL_IC * BYTES_IN_REG];			// SPI Receive Buffer
+	uint8_t 	spiRxBuf[TOTAL_IC * BYTES_IN_REG * 4];		// SPI Receive Buffer (Maximum size is cell voltage read result)
 	uint8_t	 	spiTxBuf[TOTAL_IC * BYTES_IN_REG];			// SPI Transmit Buffer
 	uint8_t		boardConfigs[TOTAL_IC][REG_BYTES];			// All the boards' configurations on the stack
+	uint16_t	boardStat[TOTAL_IC][6];						// Status register data for each boards
 	uint16_t 	auxVolts[TOTAL_IC][REG_BYTES];				// Stores the auxiliary GPIO measurement data
 	uint16_t	cellVolts[TOTAL_IC][12];					// Stores the cell voltage measurement data
 } ltc68041ChainHandle;
@@ -153,6 +157,7 @@ typedef struct {
 	uint8_t		dcto;		// Discharge timeout
 }ltc68041ChainInitStruct;
 
+uint8_t LTC68041_Initialize(ltc68041ChainHandle * hbms, ltc68041ChainInitStruct * hinit);
 int8_t LTC6804_rdaux(ltc68041ChainHandle * hbms, uint8_t reg);
 void set_adc(ltc68041ChainHandle * hbms, uint8_t MD, uint8_t DCP, uint8_t CH, uint8_t CHG);
 void LTC6804_adax(ltc68041ChainHandle * hbms);
@@ -166,5 +171,13 @@ void LTC6804_wrcfg(ltc68041ChainHandle * hbms);
 int8_t LTC6804_rdcfg(ltc68041ChainHandle * hbms);
 void wakeup_sleep();
 uint16_t pec15_calc(uint8_t len, uint8_t *data);
+
+// Diagnostics
+int8_t LTC6804_cvTest(ltc68041ChainHandle * hbms);
+int8_t LTC6804_auxTest(ltc68041ChainHandle * hbms);
+int8_t LTC6804_statTest(ltc68041ChainHandle * hbms);
+int8_t LTC6804_muxTest(ltc68041ChainHandle * hbms);
+int8_t LTC6804_internalTest(ltc68041ChainHandle * hbms);
+
 
 #endif
