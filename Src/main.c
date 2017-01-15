@@ -51,7 +51,7 @@
 #include "nodeMiscHelpers.h"
 #include "nodeConf.h"
 #include "../../CAN_ID.h"
-#include "LTC6804_lib.h"
+#include "LTC68041.h"
 
 // RTOS Task functions + helpers
 #include "Can_Processor.h"
@@ -84,7 +84,7 @@ osSemaphoreId bmsTRxCompleteHandle;
 
 /* USER CODE BEGIN PV */
 /* Private variables ---------------------------------------------------------*/
-ltc68041ChainHandle hbms1;
+//ltc68041ChainHandle hbms1;
 
 #ifdef FRANK
 const uint32_t firmwareString = 0x00000100;	// v00.00.01.0
@@ -137,19 +137,19 @@ void can_rx_cb(){
 /* USER CODE BEGIN 0 */
 // SPI DMA read channels complete callback
 void HAL_SPI_TxRxCpltCallback(SPI_HandleTypeDef *hspi){
-	// Check which SPI issued interrupt
-	if(hspi == (hbms1.hspi)){
-		HAL_GPIO_WritePin(BMS_CS_GPIO_Port,BMS_CS_Pin, GPIO_PIN_SET);
-		xSemaphoreGiveFromISR(bmsTRxCompleteHandle, NULL);
-	}
+//	// Check which SPI issued interrupt
+//	if(hspi == (hbms1.hspi)){
+//		HAL_GPIO_WritePin(BMS_CS_GPIO_Port,BMS_CS_Pin, GPIO_PIN_SET);
+//		xSemaphoreGiveFromISR(bmsTRxCompleteHandle, NULL);
+//	}
 }
 
 // SPI DMA write reg complete callback
 void HAL_SPI_TxCpltCallback(SPI_HandleTypeDef *hspi){
-	// Check which SPI issued interrupt
-	if(hspi == (hbms1.hspi)){
-		HAL_GPIO_WritePin(BMS_CS_GPIO_Port,BMS_CS_Pin, GPIO_PIN_SET);
-	}
+//	// Check which SPI issued interrupt
+//	if(hspi == (hbms1.hspi)){
+//		HAL_GPIO_WritePin(BMS_CS_GPIO_Port,BMS_CS_Pin, GPIO_PIN_SET);
+//	}
 }
 /* USER CODE END 0 */
 
@@ -193,8 +193,8 @@ int main(void)
 #endif
 
   // Set up the global ADC configs for the LTC6804
-  ltc68041ChainInitStruct bmsInitParams[TOTAL_IC];
-  LTC68041_Initialize(&hbms1, bmsInitParams);
+//  ltc68041ChainInitStruct bmsInitParams[TOTAL_IC];
+//  LTC68041_Initialize(&hbms1, bmsInitParams);
   /* USER CODE END 2 */
 
   /* Create the mutex(es) */
