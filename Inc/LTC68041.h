@@ -155,8 +155,6 @@ uint8_t ltc68041_readCOMM(bmsChainHandleTypeDef * hbms);     // Read from COMM r
 uint8_t ltc68041_startCOMM(bmsChainHandleTypeDef * hbms);   // Start communication
 
 // Utilities
-uint8_t ltc68041_owTest(bmsChainHandleTypeDef * hbms);      // Open wire test (ADOW)
-uint8_t ltc68041_convStat(bmsChainHandleTypeDef * hbms);    // ADC conversion Status (PLADC)
 void	ltc68041_parseSTAT(bmsChainHandleTypeDef * hbms, REG_GROUP group);		// Parse spiRxBuf data into STAT array
 void	ltc68041_parseCV(bmsChainHandleTypeDef * hbms, REG_GROUP group);		// Parse spiRxBuf data into CV array
 void	ltc68041_parseAUX(bmsChainHandleTypeDef * hbms, REG_GROUP group);		// Parse spiRxBuf data into AUX array

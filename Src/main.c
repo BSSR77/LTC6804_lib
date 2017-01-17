@@ -196,6 +196,7 @@ int main(void)
 //  ltc68041ChainInitStruct bmsInitParams[TOTAL_IC];
 //  LTC68041_Initialize(&hbms1, bmsInitParams);
   hbms1.hspi = &hspi1;
+  ltc68041_Initialize(&hbms1);
   /* USER CODE END 2 */
 
   /* Create the mutex(es) */
@@ -511,32 +512,35 @@ void doApplication(void const * argument)
   /* Infinite loop */
   for(;;)
   {
-	uint8_t data[6] = {0xFC,0,0,0,0,0};
-	int8_t success = ltc68041_writeRegGroup(&hbms1, WRCFG, data);
-	osDelay(1);
-	success = ltc68041_readRegGroup(&hbms1, RDCFG);
-    osDelay(1);
-    success = ltc68041_writeCommand(&hbms1, CLRCELL);
+
+    int8_t success = ltc68041_writeCommand(&hbms1, CLRCELL);
     osDelay(1);
     success = ltc68041_writeCommand(&hbms1, (ADCV_T | (0x2 << 7)));
 
     // Delay enough time but also make sure that the chip doesn't go into sleep mode
-	osDelay(3);
-	wakeup_sleep();
-	osDelay(3);
-	wakeup_sleep();
-	osDelay(3);
-	wakeup_sleep();
-	osDelay(3);
-	wakeup_sleep();
-	osDelay(3);
-	wakeup_sleep();
-	osDelay(3);
-	wakeup_sleep();
+	for(uint8_t i = 0; i < 2 * TOTAL_IC; i++){
+		osDelay(3);
+		wakeup_sleep();
+	}
 
-	// Read the register group
+	// Read the register groups
 	success = ltc68041_readRegGroup(&hbms1, RDCVA);
-	osDelay(5);
+	osDelay(1);
+	ltc68041_parseCV(&hbms1, A);
+
+	success = ltc68041_readRegGroup(&hbms1, RDCVB);
+	osDelay(1);
+	ltc68041_parseCV(&hbms1, B);
+
+	success = ltc68041_readRegGroup(&hbms1, RDCVC);
+	osDelay(1);
+	ltc68041_parseCV(&hbms1, C);
+
+	success = ltc68041_readRegGroup(&hbms1, RDCVD);
+	osDelay(1);
+	ltc68041_parseCV(&hbms1, D);
+
+	osDelay(20);
   }
   /* USER CODE END 5 */ 
 }
