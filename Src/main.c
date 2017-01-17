@@ -513,9 +513,30 @@ void doApplication(void const * argument)
   {
 	uint8_t data[6] = {0xFC,0,0,0,0,0};
 	int8_t success = ltc68041_writeRegGroup(&hbms1, WRCFG, data);
-	osDelay(5);
+	osDelay(1);
 	success = ltc68041_readRegGroup(&hbms1, RDCFG);
     osDelay(1);
+    success = ltc68041_writeCommand(&hbms1, CLRCELL);
+    osDelay(1);
+    success = ltc68041_writeCommand(&hbms1, (ADCV_T | (0x2 << 7)));
+
+    // Delay enough time but also make sure that the chip doesn't go into sleep mode
+	osDelay(3);
+	wakeup_sleep();
+	osDelay(3);
+	wakeup_sleep();
+	osDelay(3);
+	wakeup_sleep();
+	osDelay(3);
+	wakeup_sleep();
+	osDelay(3);
+	wakeup_sleep();
+	osDelay(3);
+	wakeup_sleep();
+
+	// Read the register group
+	success = ltc68041_readRegGroup(&hbms1, RDCVA);
+	osDelay(5);
   }
   /* USER CODE END 5 */ 
 }

@@ -8,7 +8,7 @@
 #include "../../CAN_ID.h"
 
 // BMS Chain defines
-#define TOTAL_IC      1   // Number of boards in the stack
+#define TOTAL_IC      3   // Number of boards in the stack
 
 // LTC6804-1 Dependent defines
 // Register lengths and numbers
