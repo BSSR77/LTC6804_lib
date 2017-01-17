@@ -236,14 +236,14 @@ int8_t ltc68041_readRegGroup_sync(bmsChainHandleTypeDef * hbms, uint16_t address
 	(hbms->spiTxBuf)[2] = (tempPEC >> 8) & 0xFF;
 	(hbms->spiTxBuf)[3] = tempPEC & 0xFF;
 
-	//wakeup_idle (); 	//This will guarantee that the LTC6804 isoSPI port is awake.This command can be removed.
+	wakeup_idle (); 	//This will guarantee that the LTC6804 isoSPI port is awake.This command can be removed.
 
-//	// Wait for the SPI peripheral to finish TXing if it's busy
-//	while(!((HAL_SPI_GetState(hbms->hspi) == HAL_SPI_STATE_READY) ||
-//	  (HAL_SPI_GetState(hbms->hspi) == HAL_SPI_STATE_BUSY_RX)))
-//	{
-//	  HAL_Delay(1);
-//	}
+	// Wait for the SPI peripheral to finish TXing if it's busy
+	while(!((HAL_SPI_GetState(hbms->hspi) == HAL_SPI_STATE_READY) ||
+	  (HAL_SPI_GetState(hbms->hspi) == HAL_SPI_STATE_BUSY_RX)))
+	{
+	  HAL_Delay(1);
+	}
 
 	// Flush spi Rx FIFO
 	while(__HAL_SPI_GET_FLAG(hbms->hspi, SPI_FLAG_RXNE)){
@@ -345,7 +345,7 @@ int8_t ltc68041_Initialize(bmsChainHandleTypeDef * hbms){
 	// 2. Register self tests
 	retCode = ltc68041_cvTest(hbms);
 	retCode = ltc68041_auxTest(hbms);
-	//retCode = ltc68041_statTest(hbms);
+	retCode = ltc68041_statTest(hbms);
 
 	// 3. Internal parameter self tests (including MUX)
 	retCode = ltc68041_adstatTest(hbms);
@@ -440,10 +440,11 @@ int8_t ltc68041_auxTest(bmsChainHandleTypeDef * hbms){
 	int8_t retCode;
 	uint16_t regVal;
 	retCode = ltc68041_writeCommand_sync(hbms, AXST_T | MD_BITS | ST_BITS, SPI_TIMEOUT);	// Cell voltage self-test command
-	for(uint8_t i = 0; i < TOTAL_IC; i++){
-		wakeup_idle();		// Keep chip awake
-		HAL_Delay(1);		// Delay to wait for chip completion
-	}
+//	for(uint8_t i = 0; i < TOTAL_IC; i++){
+//		wakeup_idle();		// Keep chip awake
+//		HAL_Delay(1);		// Delay to wait for chip completion
+//	}
+	HAL_Delay(1);
 
 	// Check AUX group A
 	retCode = ltc68041_readRegGroup_sync(hbms, RDAUXA, SPI_TIMEOUT);
@@ -487,7 +488,6 @@ int8_t ltc68041_statTest(bmsChainHandleTypeDef * hbms){
 	retCode = ltc68041_writeCommand_sync(hbms, STATST_T | MD_BITS | ST_BITS, SPI_TIMEOUT);	// Cell voltage self-test command
 	HAL_Delay(1);		// Delay to wait for chip completion
 
-
 	// Check STAT group A
 	retCode = ltc68041_readRegGroup_sync(hbms, RDSTATA, SPI_TIMEOUT);
     for(uint8_t current_ic = 0; current_ic < TOTAL_IC; current_ic ++){
@@ -501,17 +501,15 @@ int8_t ltc68041_statTest(bmsChainHandleTypeDef * hbms){
     	}
     }
 
-	// Check STAT group B
-	retCode = ltc68041_readRegGroup_sync(hbms, RDSTATB, SPI_TIMEOUT);
+	// Check STAT group B (VD registers only!!!)
+    retCode = ltc68041_readRegGroup_sync(hbms, RDSTATB, SPI_TIMEOUT);
     for(uint8_t current_ic = 0; current_ic < TOTAL_IC; current_ic ++){
-        for(uint8_t i = 0; i < STAT_PER_REG; i= i + 2){
-    		regVal = ((hbms->spiRxBuf)[i + 1 + current_ic*TX_REG_LEN + TX_CMD_LEN] << 8) | (hbms->spiRxBuf)[i + current_ic*TX_REG_LEN + TX_CMD_LEN];
-    		if( regVal != ST_VALUE){
-    			// Register group value mismatch
-    			retCode = 2;
-    			break;
-    		}
-    	}
+		regVal = ((hbms->spiRxBuf)[1 + current_ic*TX_REG_LEN + TX_CMD_LEN] << 8) | (hbms->spiRxBuf)[current_ic*TX_REG_LEN + TX_CMD_LEN];
+		if( regVal != ST_VALUE){
+			// Register group value mismatch
+			retCode = 2;
+			break;
+		}
     }
 
 	return retCode;
