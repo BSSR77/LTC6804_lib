@@ -196,7 +196,9 @@ int main(void)
 //  ltc68041ChainInitStruct bmsInitParams[TOTAL_IC];
 //  LTC68041_Initialize(&hbms1, bmsInitParams);
   hbms1.hspi = &hspi1;
-  ltc68041_Initialize(&hbms1);
+  if(ltc68041_Initialize(&hbms1) != 0){
+	  for(;;);
+  }
   /* USER CODE END 2 */
 
   /* Create the mutex(es) */
@@ -311,7 +313,7 @@ void SystemClock_Config(void)
   RCC_ClkInitStruct.SYSCLKSource = RCC_SYSCLKSOURCE_PLLCLK;
   RCC_ClkInitStruct.AHBCLKDivider = RCC_SYSCLK_DIV1;
   RCC_ClkInitStruct.APB1CLKDivider = RCC_HCLK_DIV1;
-  RCC_ClkInitStruct.APB2CLKDivider = RCC_HCLK_DIV1;
+  RCC_ClkInitStruct.APB2CLKDivider = RCC_HCLK_DIV2;
 
   if (HAL_RCC_ClockConfig(&RCC_ClkInitStruct, FLASH_LATENCY_4) != HAL_OK)
   {

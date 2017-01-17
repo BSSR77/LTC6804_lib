@@ -347,6 +347,8 @@ int8_t ltc68041_Initialize(bmsChainHandleTypeDef * hbms){
 	retCode = ltc68041_auxTest(hbms);
 	retCode = ltc68041_statTest(hbms);
 
+	HAL_WWDG_Refresh(&hwwdg);
+
 	// 3. Internal parameter self tests (including MUX)
 	retCode = ltc68041_adstatTest(hbms);
 
@@ -557,11 +559,14 @@ int8_t ltc68041_adstatTest(bmsChainHandleTypeDef * hbms){
 	// Check values
 	for(uint8_t i = 0; i < TOTAL_IC; i++){
 		// THSD bit
-		if((hbms->board[i]).STATR[5] & 0x1){
+		// Must right shift 8 bits since the byte orders are flipped
+		if(((hbms->board[i]).STATR[5] >> 8) & 0x1){
 			retCode = i * 10 + 1;
 		}
+
 		// MUX bit
-		if((hbms->board[i]).STATR[5] & 0x10){
+		// Must right shift 8 bits since the byte orders are flipped
+		if(((hbms->board[i]).STATR[5] >> 9) & 0x1){
 			retCode = i * 10 + 4;
 		}
 		// VD bits
@@ -583,7 +588,7 @@ int8_t ltc68041_accuracyTest(bmsChainHandleTypeDef * hbms){
 	retCode = ltc68041_writeCommand_sync(hbms, ADAX_T | MD_BITS | 0x6, SPI_TIMEOUT);	// Start conversion of VREF2 on AuxB
 	for(uint8_t i = 0; i < TOTAL_IC; i++){
 		wakeup_idle();		// Keep chip awake
-		HAL_Delay(1);		// Delay to wait for chip completion
+		HAL_Delay(2);		// Delay to wait for chip completion
 	}
 
 	retCode = ltc68041_readRegGroup_sync(hbms, RDAUXB, SPI_TIMEOUT);
@@ -646,7 +651,8 @@ uint8_t ltc68041_startCOMM(bmsChainHandleTypeDef * hbms){
 	return 0;
 }
 
-// TODO: test
+// TESTED
+// Byte orders 4 and 5, 2 and 3 are flipped
 void ltc68041_parseSTAT(bmsChainHandleTypeDef * hbms, REG_GROUP group){
 	uint16_t tempData;
 	for(uint8_t current_ic = 0; current_ic < TOTAL_IC; current_ic ++){
@@ -658,7 +664,7 @@ void ltc68041_parseSTAT(bmsChainHandleTypeDef * hbms, REG_GROUP group){
 	}
 }
 
-// TODO: test
+// TESTED
 void ltc68041_parseCV(bmsChainHandleTypeDef * hbms, REG_GROUP group){
 	uint16_t tempData;
 	for(uint8_t current_ic = 0; current_ic < TOTAL_IC; current_ic ++){
