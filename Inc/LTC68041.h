@@ -8,15 +8,15 @@
 #include "../../CAN_ID.h"
 
 // BMS Chain defines
-#define TOTAL_IC      3   // Number of boards in the stack
+#define TOTAL_IC      1   // Number of boards in the stack
 
 // LTC6804-1 Dependent defines
 // Register lengths and numbers
 #define REG_LEN       6   // The byte length of each register settings
 #define PEC_LEN       2   // Length of the PEC-byte
 #define CMD_LEN       2   // Command length
-#define TX_CMD_LEN    CMD_LEN + PEC_LEN   // Length of command transmission
-#define TX_REG_LEN    REG_LEN + PEC_LEN   // Length of register data transmission
+#define TX_CMD_LEN    (CMD_LEN + PEC_LEN)   // Length of command transmission
+#define TX_REG_LEN    (REG_LEN + PEC_LEN)   // Length of register data transmission
 #define CV_PER_REG    3   // Cell voltages per CV register group
 #define CV_REG_NUM    4   // Cell voltage register group numbers
 #define AUX_PER_REG   3   // Auxiliary GPIO measurements per AUX register group
@@ -86,13 +86,17 @@ void wakeup_idle();
 void wakeup_sleep();
 
 // Writes a data[REG_LEN] to register at address
-int8_t ltc68041_writeRegGroup(uint16_t address, uint8_t * data);
+int8_t ltc68041_writeRegGroup(bmsChainHandleTypeDef * hbms, uint16_t address, uint8_t * data);
+
+// Writes a single command frame
+int8_t ltc68041_writeCommand(bmsChainHandleTypeDef * hbms, uint16_t cmd);
 
 // Read a register group at address and have the data stored
-int8_t ltc68041_readRegGroup(uint16_t address);
+int8_t ltc68041_readRegGroup(bmsChainHandleTypeDef * hbms, uint16_t address);
 
 // PEC Calculator
 uint16_t ltc68041_calculatePEC(uint8_t * data, uint8_t len);
+uint16_t pec15_calc(uint8_t len, uint8_t *data);		// CPU CRC Calculator
 
 // User-exposed API
 // Initialization function with all the selfTests

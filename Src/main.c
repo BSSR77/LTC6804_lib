@@ -84,7 +84,7 @@ osSemaphoreId bmsTRxCompleteHandle;
 
 /* USER CODE BEGIN PV */
 /* Private variables ---------------------------------------------------------*/
-//ltc68041ChainHandle hbms1;
+bmsChainHandleTypeDef hbms1;
 
 #ifdef FRANK
 const uint32_t firmwareString = 0x00000100;	// v00.00.01.0
@@ -137,19 +137,19 @@ void can_rx_cb(){
 /* USER CODE BEGIN 0 */
 // SPI DMA read channels complete callback
 void HAL_SPI_TxRxCpltCallback(SPI_HandleTypeDef *hspi){
-//	// Check which SPI issued interrupt
-//	if(hspi == (hbms1.hspi)){
-//		HAL_GPIO_WritePin(BMS_CS_GPIO_Port,BMS_CS_Pin, GPIO_PIN_SET);
-//		xSemaphoreGiveFromISR(bmsTRxCompleteHandle, NULL);
-//	}
+	// Check which SPI issued interrupt
+	if(hspi == (hbms1.hspi)){
+		HAL_GPIO_WritePin(BMS_CS_GPIO_Port,BMS_CS_Pin, GPIO_PIN_SET);
+		xSemaphoreGiveFromISR(bmsTRxCompleteHandle, NULL);
+	}
 }
 
 // SPI DMA write reg complete callback
 void HAL_SPI_TxCpltCallback(SPI_HandleTypeDef *hspi){
-//	// Check which SPI issued interrupt
-//	if(hspi == (hbms1.hspi)){
-//		HAL_GPIO_WritePin(BMS_CS_GPIO_Port,BMS_CS_Pin, GPIO_PIN_SET);
-//	}
+	// Check which SPI issued interrupt
+	if(hspi == (hbms1.hspi)){
+		HAL_GPIO_WritePin(BMS_CS_GPIO_Port,BMS_CS_Pin, GPIO_PIN_SET);
+	}
 }
 /* USER CODE END 0 */
 
@@ -195,6 +195,7 @@ int main(void)
   // Set up the global ADC configs for the LTC6804
 //  ltc68041ChainInitStruct bmsInitParams[TOTAL_IC];
 //  LTC68041_Initialize(&hbms1, bmsInitParams);
+  hbms1.hspi = &hspi1;
   /* USER CODE END 2 */
 
   /* Create the mutex(es) */
@@ -485,14 +486,13 @@ static void MX_GPIO_Init(void)
 
   /* GPIO Ports Clock Enable */
   __HAL_RCC_GPIOA_CLK_ENABLE();
-  __HAL_RCC_GPIOB_CLK_ENABLE();
 
   /*Configure GPIO pin Output Level */
   HAL_GPIO_WritePin(BMS_CS_GPIO_Port, BMS_CS_Pin, GPIO_PIN_SET);
 
   /*Configure GPIO pin : BMS_CS_Pin */
   GPIO_InitStruct.Pin = BMS_CS_Pin;
-  GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_OD;
+  GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
   GPIO_InitStruct.Pull = GPIO_PULLUP;
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
   HAL_GPIO_Init(BMS_CS_GPIO_Port, &GPIO_InitStruct);
@@ -511,6 +511,10 @@ void doApplication(void const * argument)
   /* Infinite loop */
   for(;;)
   {
+	uint8_t data[6] = {0xFC,0,0,0,0,0};
+	int8_t success = ltc68041_writeRegGroup(&hbms1, WRCFG, data);
+	osDelay(5);
+	success = ltc68041_readRegGroup(&hbms1, RDCFG);
     osDelay(1);
   }
   /* USER CODE END 5 */ 
