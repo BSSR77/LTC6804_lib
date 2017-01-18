@@ -314,7 +314,7 @@ uint16_t pec15_calc(uint8_t len, //Number of bytes that will be used to calculat
 
 
 // User-exposed API
-// TODO: test
+// TESTED
 // Initialization function with all the selfTests
 int8_t ltc68041_Initialize(bmsChainHandleTypeDef * hbms){
 	int8_t retCode;
@@ -431,7 +431,7 @@ int8_t ltc68041_cvTest(bmsChainHandleTypeDef * hbms){
     return retCode;
 }
 
-// TODO: Test
+// TESTED
 // Checks the status register groups
 // Returns test results
 // 0  - Success
@@ -477,7 +477,7 @@ int8_t ltc68041_auxTest(bmsChainHandleTypeDef * hbms){
 	return retCode;
 }
 
-// TODO: Test
+// TESTED
 // Checks the status register groups
 // Returns test results
 // 0  - Success
@@ -517,7 +517,7 @@ int8_t ltc68041_statTest(bmsChainHandleTypeDef * hbms){
 	return retCode;
 }
 
-// TODO: test
+// TESTED
 // Multiplexer self-test
 int8_t ltc68041_muxTest(bmsChainHandleTypeDef * hbms){
 	int8_t retCode;
@@ -526,7 +526,7 @@ int8_t ltc68041_muxTest(bmsChainHandleTypeDef * hbms){
 	return retCode;
 }
 
-// TODO: Test
+// TESTED
 // Returns internal diagnostic variable check status
 // x -> board number
 // 0  - success
@@ -578,7 +578,7 @@ int8_t ltc68041_adstatTest(bmsChainHandleTypeDef * hbms){
 	return retCode;
 }
 
-// TODO: Test
+// TESTED
 // Returns internal diagnostic variable check status
 // x -> board number
 // 0  - success
@@ -603,7 +603,7 @@ int8_t ltc68041_accuracyTest(bmsChainHandleTypeDef * hbms){
 	return retCode;
 }
 
-// TODO: TEST
+// TESTED
 // Clear register operations
 inline int8_t ltc68041_clearCell(bmsChainHandleTypeDef * hbms){
 	return ltc68041_writeCommand(hbms, CLRCELL);
@@ -619,7 +619,7 @@ inline int8_t ltc68041_clearStat(bmsChainHandleTypeDef * hbms){
 	return ltc68041_writeCommand(hbms, CLRSTAT);
 }
 
-// TODO: TEST
+// TESTED
 // Start conversion
 inline int8_t ltc68041_startCVConv(bmsChainHandleTypeDef * hbms){
 	// Disable cell discharge
@@ -688,7 +688,7 @@ void ltc68041_parseAUX(bmsChainHandleTypeDef * hbms, REG_GROUP group){
 	}
 }
 
-// TODO: test
+// TESTED
 void ltc68041_parseCFG(bmsChainHandleTypeDef * hbms){
 	// Copy the spiRxBuf bytes into the CFGR array
 	for(uint8_t current_ic = 0; current_ic < TOTAL_IC; current_ic ++){
